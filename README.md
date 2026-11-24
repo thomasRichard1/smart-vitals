@@ -4,6 +4,13 @@ A small [SMART on FHIR](https://hl7.org/fhir/smart-app-launch/) app that signs i
 
 **Stack:** React + Vite, [`fhirclient`](https://github.com/smart-on-fhir/client-js) (SMART client), Recharts, Node/Express, Vitest.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img src="docs/screenshot-light.png" alt="SMART Vitals showing blood pressure, weight, BMI, cholesterol and temperature charts for a synthetic sandbox patient">
+</picture>
+
+*A synthetic patient from the SMART sandbox, in light and dark mode (it follows your system theme).*
+
 ## What it shows
 
 Blood pressure (systolic/diastolic), body weight, BMI, cholesterol (LDL/HDL), body temperature, heart rate and glucose. Charts with no data for the chosen patient are skipped and listed underneath (many synthetic patients have no heart rate or glucose). Each chart has a hover tooltip, a latest-value readout, and a table view. Units are normalised (lb to kg, °F to °C), and entered-in-error observations are skipped.
