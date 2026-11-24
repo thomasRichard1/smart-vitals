@@ -14,16 +14,30 @@ export const CHARTS = [
       { key: "diastolic", label: "Diastolic", codes: ["8462-4"] },
     ],
   },
-  { id: "hr", title: "Heart rate", unit: "beats/min", series: [{ key: "hr", label: "Heart rate", codes: ["8867-4"] }] },
   { id: "weight", title: "Body weight", unit: "kg", series: [{ key: "weight", label: "Weight", codes: ["29463-7"] }] },
-  { id: "temp", title: "Body temperature", unit: "°C", series: [{ key: "temp", label: "Temperature", codes: ["8310-5"] }] },
+  { id: "bmi", title: "Body mass index", unit: "kg/m²", series: [{ key: "bmi", label: "BMI", codes: ["39156-5"] }] },
+  {
+    id: "cholesterol",
+    title: "Cholesterol",
+    unit: "mg/dL",
+    series: [
+      { key: "ldl", label: "LDL", codes: ["18262-6", "13457-7", "2089-1"] },
+      { key: "hdl", label: "HDL", codes: ["2085-9"] },
+    ],
+  },
+  { id: "hr", title: "Heart rate", unit: "beats/min", series: [{ key: "hr", label: "Heart rate", codes: ["8867-4"] }] },
+  {
+    id: "temp",
+    title: "Body temperature",
+    unit: "°C",
+    series: [{ key: "temp", label: "Temperature", codes: ["8310-5", "8331-1"] }],
+  },
   {
     id: "glucose",
     title: "Glucose",
     unit: "mg/dL",
     series: [{ key: "glucose", label: "Glucose", codes: ["2339-0", "2345-7", "15074-8"] }],
   },
-  { id: "ldl", title: "LDL cholesterol", unit: "mg/dL", series: [{ key: "ldl", label: "LDL", codes: ["18262-6", "13457-7", "2089-1"] }] },
 ];
 
 /** Convert a value to the chart's canonical unit. Returns null if unusable. */
