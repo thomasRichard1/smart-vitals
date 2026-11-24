@@ -1,36 +1,48 @@
-// Pure helpers: turn FHIR Observation resources into chartable series.
-// Kept free of React and network code so they are easy to unit test.
+// Pure helpers: turn FHIR Observation resources into chartable series, and derive the
+// numbers the UI shows (status vs a reference range, change since last reading, axis
+// domains, time filtering). No React or network code, so it is easy to unit test.
 
 const LB_TO_KG = 0.45359237;
 
-/** Each chart: which LOINC codes feed which series, and how to label it. */
+// `normal` is a general adult reference range [low, high] used only to shade the chart and
+// flag the latest reading. Illustrative, not medical advice. Use null for an open end.
 export const CHARTS = [
   {
     id: "bp",
     title: "Blood pressure",
     unit: "mmHg",
     series: [
-      { key: "systolic", label: "Systolic", codes: ["8480-6"] },
-      { key: "diastolic", label: "Diastolic", codes: ["8462-4"] },
+      { key: "systolic", label: "Systolic", codes: ["8480-6"], normal: [90, 120] },
+      { key: "diastolic", label: "Diastolic", codes: ["8462-4"], normal: [60, 80] },
     ],
   },
   { id: "weight", title: "Body weight", unit: "kg", series: [{ key: "weight", label: "Weight", codes: ["29463-7"] }] },
-  { id: "bmi", title: "Body mass index", unit: "kg/m²", series: [{ key: "bmi", label: "BMI", codes: ["39156-5"] }] },
+  {
+    id: "bmi",
+    title: "Body mass index",
+    unit: "kg/m²",
+    series: [{ key: "bmi", label: "BMI", codes: ["39156-5"], normal: [18.5, 25] }],
+  },
   {
     id: "cholesterol",
     title: "Cholesterol",
     unit: "mg/dL",
     series: [
-      { key: "ldl", label: "LDL", codes: ["18262-6", "13457-7", "2089-1"] },
-      { key: "hdl", label: "HDL", codes: ["2085-9"] },
+      { key: "ldl", label: "LDL", codes: ["18262-6", "13457-7", "2089-1"], normal: [0, 100] },
+      { key: "hdl", label: "HDL", codes: ["2085-9"], normal: [40, null] },
     ],
   },
-  { id: "hr", title: "Heart rate", unit: "beats/min", series: [{ key: "hr", label: "Heart rate", codes: ["8867-4"] }] },
+  {
+    id: "hr",
+    title: "Heart rate",
+    unit: "beats/min",
+    series: [{ key: "hr", label: "Heart rate", codes: ["8867-4"], normal: [60, 100] }],
+  },
   {
     id: "temp",
     title: "Body temperature",
     unit: "°C",
-    series: [{ key: "temp", label: "Temperature", codes: ["8310-5", "8331-1"] }],
+    series: [{ key: "temp", label: "Temperature", codes: ["8310-5", "8331-1"], normal: [36.1, 37.2] }],
   },
   {
     id: "glucose",
@@ -74,7 +86,7 @@ function obsTime(obs) {
   return Number.isNaN(t) ? null : t;
 }
 
-/** Build rows [{t, date, <seriesKey>: number}] sorted by time for one chart. */
+/** Build rows [{t, <seriesKey>: number}] sorted by time for one chart. */
 export function buildChartData(observations, chart) {
   const byTime = new Map();
   for (const obs of observations) {
@@ -105,5 +117,94 @@ export function patientSummary(patient) {
     age = now.getFullYear() - b.getFullYear();
     if (now < new Date(now.getFullYear(), b.getMonth(), b.getDate())) age -= 1;
   }
-  return { name: full, gender: patient.gender || "unknown", birthDate: dob, age };
+  const initials = full
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+  return { name: full, gender: patient.gender || "unknown", birthDate: dob, age, initials };
+}
+
+// ---------- derived values for the UI ----------
+
+/** "low" | "in" | "high", or null when there is no reference range. */
+export function statusOf(value, normal) {
+  if (!normal || typeof value !== "number") return null;
+  const [lo, hi] = normal;
+  if (lo !== null && value < lo) return "low";
+  if (hi !== null && value > hi) return "high";
+  return "in";
+}
+
+/** Latest value per series, with change vs the previous reading and range status. */
+export function latestValues(data, chart) {
+  return chart.series
+    .map((s) => {
+      const rows = data.filter((r) => r[s.key] !== undefined);
+      if (rows.length === 0) return null;
+      const last = rows[rows.length - 1];
+      const prev = rows.length > 1 ? rows[rows.length - 2] : null;
+      return {
+        key: s.key,
+        label: s.label,
+        value: last[s.key],
+        t: last.t,
+        delta: prev ? Math.round((last[s.key] - prev[s.key]) * 10) / 10 : null,
+        prevT: prev ? prev.t : null,
+        status: statusOf(last[s.key], s.normal),
+      };
+    })
+    .filter(Boolean);
+}
+
+/** Overall status of a chart: the first out-of-range series wins, else "in", else null. */
+export function chartStatus(values) {
+  const flagged = values.find((v) => v.status === "low" || v.status === "high");
+  if (flagged) return flagged.status;
+  return values.some((v) => v.status === "in") ? "in" : null;
+}
+
+/** Keep rows within `range` ("1y" | "5y" | "all") of an anchor time (default: latest row). */
+export function filterRange(data, range, anchor) {
+  if (range === "all" || data.length === 0) return data;
+  const end = anchor ?? data[data.length - 1].t;
+  const years = range === "1y" ? 1 : 5;
+  const start = new Date(end);
+  start.setFullYear(start.getFullYear() - years);
+  return data.filter((r) => r.t >= start.getTime() && r.t <= end);
+}
+
+function niceStep(raw) {
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / pow;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow;
+}
+
+/**
+ * A y-axis domain and tick list that fits the data without exaggerating small changes:
+ * a flat line sits mid-chart instead of filling a 2-unit axis. Reference-range edges are
+ * included when they are close enough to be useful.
+ */
+export function niceAxis(values, edges = []) {
+  if (values.length === 0) return { domain: [0, 1], ticks: [0, 1] };
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  const span = Math.max(hi - lo, Math.abs(hi) * 0.1, 1);
+  lo -= span * 0.25;
+  hi += span * 0.25;
+  const near = [lo - span, hi + span];
+  for (const e of edges) {
+    if (e === null || e === undefined) continue;
+    if (e >= near[0] && e <= near[1]) {
+      lo = Math.min(lo, e);
+      hi = Math.max(hi, e);
+    }
+  }
+  const step = niceStep((hi - lo) / 4);
+  const start = Math.floor(lo / step) * step;
+  const end = Math.ceil(hi / step) * step;
+  const ticks = [];
+  for (let v = start; v <= end + step / 2; v += step) ticks.push(Math.round(v * 1000) / 1000);
+  return { domain: [start, end], ticks };
 }
