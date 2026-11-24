@@ -8,10 +8,14 @@ export default function VitalChart({ chart, data }) {
   const [table, setTable] = useState(false);
   const multi = chart.series.length > 1;
   const latest = data[data.length - 1];
-  const headline = chart.series
-    .map((s) => latest[s.key])
-    .filter((v) => v !== undefined)
-    .join("/");
+  // Each series' own latest value (they can differ in date). Blood pressure reads as 120/80;
+  // anything else is labelled so "68.5/78.8" is never ambiguous.
+  const lastOf = (key) => [...data].reverse().find((r) => r[key] !== undefined)?.[key];
+  const values = chart.series.map((s) => ({ label: s.label, v: lastOf(s.key) })).filter((x) => x.v !== undefined);
+  const headline =
+    chart.id === "bp" || values.length < 2
+      ? values.map((x) => x.v).join("/")
+      : values.map((x) => `${x.label} ${x.v}`).join(" · ");
 
   return (
     <section className="card chart">
@@ -87,8 +91,12 @@ export default function VitalChart({ chart, data }) {
                   stroke={`var(--series-${i + 1})`}
                   strokeWidth={2}
                   strokeDasharray={i === 1 ? "6 3" : undefined}
-                  dot={data.length < 25 ? { r: 3, strokeWidth: 2, stroke: "var(--surface)" } : false}
-                  activeDot={{ r: 5, stroke: "var(--surface)", strokeWidth: 2 }}
+                  dot={
+                    data.length < 25
+                      ? { r: 3, fill: `var(--series-${i + 1})`, stroke: "var(--surface)", strokeWidth: 2 }
+                      : false
+                  }
+                  activeDot={{ r: 5, fill: `var(--series-${i + 1})`, stroke: "var(--surface)", strokeWidth: 2 }}
                   connectNulls
                   isAnimationActive={false}
                 />
