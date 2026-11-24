@@ -6,7 +6,7 @@ A small [SMART on FHIR](https://hl7.org/fhir/smart-app-launch/) app that signs i
 
 ## What it shows
 
-Blood pressure (systolic/diastolic), heart rate, body weight, body temperature, glucose and LDL cholesterol. Each chart has a hover tooltip, a latest-value readout, and a table view. Units are normalised (lb to kg, °F to °C), and entered-in-error observations are skipped.
+Blood pressure (systolic/diastolic), body weight, BMI, cholesterol (LDL/HDL), body temperature, heart rate and glucose. Charts with no data for the chosen patient are skipped and listed underneath (many synthetic patients have no heart rate or glucose). Each chart has a hover tooltip, a latest-value readout, and a table view. Units are normalised (lb to kg, °F to °C), and entered-in-error observations are skipped.
 
 ## How the SMART launch works
 
@@ -48,6 +48,7 @@ server/   Express: serves client/dist and a /health route
 
 ## Notes and next steps
 
+- The sandbox needs a `launch` parameter even on standalone launches, so the app sends `launch=e30` (base64 for `{}`) to the sandbox only.
 - Public client by design. The sandbox accepts any `client_id`; a real EHR would need the app registered, with its redirect URI.
 - Tokens live in `sessionStorage` (managed by `fhirclient`) and are never sent to the Node server.
 - Ideas: reference-range bands, BMI from height and weight, SMART v2 scopes, and a confidential-client variant where the Node server holds the secret.
