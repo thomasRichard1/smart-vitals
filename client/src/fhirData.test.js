@@ -9,6 +9,8 @@ import {
   normalize,
   patientSummary,
   statusOf,
+  yearTicks,
+  bandsOverlap,
 } from "./fhirData.js";
 
 const bp = (date, sys, dia) => ({
@@ -94,7 +96,7 @@ describe("filterRange", () => {
   const rows = [0, 200, 400, 800, 2000].map((d) => ({ t: Date.UTC(2020, 0, 1) + d * day }));
   it("keeps everything for all, and measures back from the latest reading", () => {
     expect(filterRange(rows, "all")).toHaveLength(5);
-    expect(filterRange(rows, "1y")).toHaveLength(1);
+    expect(filterRange(rows, "2y")).toHaveLength(1);
     expect(filterRange(rows, "5y")).toHaveLength(4); // day 0 is more than 5 years before day 2000
   });
 });
@@ -110,5 +112,22 @@ describe("niceAxis", () => {
     const { domain } = niceAxis([68.5, 83], [0, 100]);
     expect(domain[1]).toBeGreaterThanOrEqual(100);
     expect(domain[0]).toBeGreaterThan(0);
+  });
+});
+
+describe("yearTicks", () => {
+  it("gives one tick per year boundary, with no duplicate years", () => {
+    const ticks = yearTicks(new Date(2012, 5, 9).getTime(), new Date(2020, 10, 14).getTime());
+    expect(ticks.map((t) => new Date(t).getFullYear())).toEqual([2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020]);
+  });
+  it("thins out when there are too many", () => {
+    expect(yearTicks(new Date(2000, 0, 2).getTime(), new Date(2020, 0, 2).getTime(), 5).length).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("bandsOverlap", () => {
+  it("is false for BP and true for cholesterol", () => {
+    expect(bandsOverlap(CHARTS[0].series, [50, 150])).toBe(false);
+    expect(bandsOverlap(CHARTS.find((c) => c.id === "cholesterol").series, [60, 100])).toBe(true);
   });
 });

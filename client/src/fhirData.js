@@ -165,11 +165,11 @@ export function chartStatus(values) {
   return values.some((v) => v.status === "in") ? "in" : null;
 }
 
-/** Keep rows within `range` ("1y" | "5y" | "all") of an anchor time (default: latest row). */
+/** Keep rows within `range` ("2y", "5y", ... or "all") of an anchor time (default: latest row). */
 export function filterRange(data, range, anchor) {
   if (range === "all" || data.length === 0) return data;
   const end = anchor ?? data[data.length - 1].t;
-  const years = range === "1y" ? 1 : 5;
+  const years = parseInt(range, 10) || 5; // "2y" -> 2, "5y" -> 5
   const start = new Date(end);
   start.setFullYear(start.getFullYear() - years);
   return data.filter((r) => r.t >= start.getTime() && r.t <= end);
@@ -207,4 +207,22 @@ export function niceAxis(values, edges = []) {
   const ticks = [];
   for (let v = start; v <= end + step / 2; v += step) ticks.push(Math.round(v * 1000) / 1000);
   return { domain: [start, end], ticks };
+}
+
+/** Jan-1 timestamps for the years inside [min, max], thinned to at most `maxTicks`. */
+export function yearTicks(min, max, maxTicks = 8) {
+  const first = new Date(min).getFullYear() + 1; // local time, to match the label formatting
+  const last = new Date(max).getFullYear();
+  const years = [];
+  for (let y = first; y <= last; y++) years.push(y);
+  const stride = Math.max(1, Math.ceil(years.length / maxTicks));
+  return years.filter((_, i) => i % stride === 0).map((y) => new Date(y, 0, 1).getTime()).filter((t) => t >= min && t <= max);
+}
+
+/** True when any two of the series' typical ranges overlap inside [lo, hi]. */
+export function bandsOverlap(series, [lo, hi]) {
+  const bands = series
+    .filter((s) => s.normal)
+    .map((s) => [Math.max(s.normal[0] ?? lo, lo), Math.min(s.normal[1] ?? hi, hi)]);
+  return bands.some((a, i) => bands.some((b, j) => j > i && a[0] < b[1] && b[0] < a[1]));
 }
