@@ -10,12 +10,18 @@ const READ_SCOPES = "patient/Patient.read patient/Observation.read openid fhirUs
 // Step 1 of the SMART flow: discover the auth server, then redirect to it (OAuth2 + PKCE).
 function startLaunch({ standalone }) {
   const params = new URLSearchParams(window.location.search);
-  return FHIR.oauth2.authorize({
+  const iss = params.get("iss") || SANDBOX_ISS;
+  const options = {
     clientId: CLIENT_ID,
     scope: standalone ? `launch/patient ${READ_SCOPES}` : `launch ${READ_SCOPES}`,
     redirectUri: "/",
-    iss: params.get("iss") || SANDBOX_ISS,
-  });
+    iss,
+  };
+  // The SMART sandbox rejects a standalone launch without a `launch` parameter; it wants
+  // base64 JSON launch options. "e30" is "{}": no preset patient, so it shows the pickers.
+  // Real EHRs do not expect this, so it is sandbox-only.
+  if (standalone && iss.startsWith("https://launch.smarthealthit.org/")) options.launch = "e30";
+  return FHIR.oauth2.authorize(options);
 }
 
 async function loadPatientData(client) {
