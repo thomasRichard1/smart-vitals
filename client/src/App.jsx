@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import FHIR from "fhirclient";
 import VitalChart from "./VitalChart.jsx";
-import { CHARTS, buildChartData, patientSummary } from "./fhirData.js";
+import { SummaryTile } from "./Tiles.jsx";
+import { CHARTS, buildChartData, filterRange, patientSummary } from "./fhirData.js";
 
 const SANDBOX_ISS = "https://launch.smarthealthit.org/v/r4/fhir";
 const CLIENT_ID = "smart-vitals";
@@ -80,28 +81,89 @@ export default function App() {
     );
   }
 
-  const p = patientSummary(state.patient);
-  const charts = CHARTS.map((c) => ({ chart: c, data: buildChartData(state.observations, c) }));
-  const withData = charts.filter((c) => c.data.length > 0);
-  const empty = charts.filter((c) => c.data.length === 0).map((c) => c.chart.title);
+  return <Dashboard patient={state.patient} observations={state.observations} />;
+}
+
+function Dashboard({ patient, observations }) {
+  const [range, setRange] = useState("all");
+  const p = patientSummary(patient);
+  const all = CHARTS.map((c) => ({ chart: c, data: buildChartData(observations, c) }));
+  const withData = all.filter((c) => c.data.length > 0);
+  const trendable = withData.filter((c) => c.data.length > 1);
+  const empty = all.filter((c) => c.data.length === 0).map((c) => c.chart.title);
+  // Anchor the time filter to the newest reading anywhere, so charts stay aligned.
+  const anchor = Math.max(0, ...withData.map((c) => c.data[c.data.length - 1].t));
+
+  const switchPatient = () => {
+    sessionStorage.clear();
+    window.location.assign("/");
+  };
 
   return (
-    <Shell>
+    <Shell onSwitch={switchPatient}>
       <header className="patient card">
-        <h2>{p.name}</h2>
-        <p className="muted">
-          {p.gender}
-          {p.age !== null && ` · ${p.age} years`}
-          {p.birthDate && ` · born ${p.birthDate}`} · {state.observations.length} observations
-        </p>
+        <div className="avatar" aria-hidden="true">{p.initials}</div>
+        <div>
+          <h2>{p.name}</h2>
+          <ul className="chips">
+            <li className="chip cap">{p.gender}</li>
+            {p.age !== null && <li className="chip">{p.age} years</li>}
+            {p.birthDate && <li className="chip">Born {p.birthDate}</li>}
+            <li className="chip">{observations.length} observations</li>
+          </ul>
+        </div>
       </header>
-      {withData.length === 0 && <p className="card">No vitals or labs found for this patient.</p>}
-      <div className="grid">
-        {withData.map(({ chart, data }) => (
-          <VitalChart key={chart.id} chart={chart} data={data} />
-        ))}
-      </div>
-      {empty.length > 0 && <p className="muted small">No data recorded for: {empty.join(", ")}.</p>}
+
+      {withData.length === 0 ? (
+        <p className="card">No vitals or labs found for this patient.</p>
+      ) : (
+        <>
+          <section aria-label="Latest readings" className="tiles">
+            {withData.map(({ chart, data }) => (
+              <SummaryTile key={chart.id} chart={chart} data={data} />
+            ))}
+          </section>
+
+          {trendable.length > 0 && (
+            <>
+              <div className="toolbar">
+                <h2>Trends</h2>
+                <div className="segmented" role="group" aria-label="Time range">
+                  {[
+                    ["2y", "2 years"],
+                    ["5y", "5 years"],
+                    ["all", "All"],
+                  ].map(([value, label]) => (
+                    <button key={value} aria-pressed={range === value} onClick={() => setRange(value)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid">
+                {trendable.map(({ chart, data }) => (
+                  <VitalChart
+                    key={chart.id}
+                    chart={chart}
+                    data={filterRange(data, range, anchor)}
+                    totalReadings={data.length}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {empty.length > 0 && (
+        <p className="muted small nodata">
+          No data recorded for: {empty.map((t) => <span key={t} className="chip">{t}</span>)}
+        </p>
+      )}
+      <p className="muted small disclaimer">
+        Typical ranges are general adult guidance for illustration, not medical advice. Data is synthetic and comes
+        from the public SMART sandbox.
+      </p>
     </Shell>
   );
 }
@@ -127,10 +189,29 @@ function Welcome() {
   );
 }
 
-function Shell({ children }) {
+function Shell({ children, onSwitch }) {
   return (
     <main>
-      <h1>SMART Vitals</h1>
+      <header className="topbar">
+        <h1>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M2 12h5l2.5-6 4 12 2.5-6H22"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          SMART Vitals
+        </h1>
+        {onSwitch && (
+          <button className="ghost" onClick={onSwitch}>
+            Switch patient
+          </button>
+        )}
+      </header>
       {children}
     </main>
   );
